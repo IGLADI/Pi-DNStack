@@ -1,0 +1,68 @@
+---
+# see https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.4
+# see https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-on-arm?view=powershell-7.4
+# based on https://chatgpt.com/share/6734bb2a-bcc8-8011-acf0-7b9208ab9202
+- name: Install PowerShell
+  hosts: all
+  become: true
+  tasks:
+      - name: Check if PowerShell is installed
+        ansible.builtin.command: pwsh --version
+        register: pwsh_installed
+        failed_when: false
+        changed_when: false
+
+      - name: Determine CPU architecture
+        ansible.builtin.command: "uname -m"
+        register: cpu_arch
+        changed_when: false
+        when: pwsh_installed.rc != 0
+
+      - name: Set PowerShell download URL
+        ansible.builtin.set_fact:
+            powershell_url: >
+                {% if cpu_arch.stdout == 'x86_64' %}
+                  https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell-7.4.6-linux-x64.tar.gz
+                {% elif cpu_arch.stdout == 'aarch64' %}
+                  https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell-7.4.6-linux-arm64.tar.gz
+                {% elif cpu_arch.stdout == 'armv7l' %}
+                  https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell-7.4.6-linux-arm32.tar.gz
+                {% else %}
+                  fail(msg="Unsupported CPU architecture: {{ cpu_arch.stdout }}")
+                {% endif %}
+        when: pwsh_installed.rc != 0
+
+      - name: Download PowerShell tar.gz archive
+        ansible.builtin.get_url:
+            url: "{{ powershell_url }}"
+            dest: /tmp/powershell.tar.gz
+            mode: "0644"
+        when: pwsh_installed.rc != 0
+
+      - name: Create target directory for PowerShell
+        ansible.builtin.file:
+            path: /opt/microsoft/powershell/7
+            state: directory
+            mode: "0755"
+        when: pwsh_installed.rc != 0
+
+      - name: Extract PowerShell tar.gz archive
+        ansible.builtin.unarchive:
+            src: /tmp/powershell.tar.gz
+            dest: /opt/microsoft/powershell/7
+            remote_src: true
+            mode: "0755"
+        when: pwsh_installed.rc != 0
+
+      - name: Set execute permissions for PowerShell binary
+        ansible.builtin.file:
+            path: /opt/microsoft/powershell/7/pwsh
+            mode: "0755"
+        when: pwsh_installed.rc != 0
+
+      - name: Create symbolic link for pwsh
+        ansible.builtin.file:
+            src: /opt/microsoft/powershell/7/pwsh
+            dest: /usr/bin/pwsh
+            state: link
+        when: pwsh_installed.rc != 0
