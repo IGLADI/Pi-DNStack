@@ -1,7 +1,8 @@
 ---
 # see https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.4
 # see https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-on-arm?view=powershell-7.4
-# based on https://chatgpt.com/share/6734bb2a-bcc8-8011-acf0-7b9208ab9202
+# see https://learn.microsoft.com/en-us/powershell/scripting/security/remoting/ssh-remoting-in-powershell?view=powershell-7.4&viewFallbackFrom=powershell-6
+# based on https://chatgpt.com/share/6734bb2a-bcc8-8011-acf0-7b9208ab9202 and
 - name: Install PowerShell
   hosts: all
   become: true
@@ -66,3 +67,15 @@
             dest: /usr/bin/pwsh
             state: link
         when: pwsh_installed.rc != 0
+
+      - name: Ensure PowerShell Subsystem entry in sshd_config
+        ansible.builtin.lineinfile:
+            path: /etc/ssh/sshd_config
+            line: "Subsystem powershell /usr/bin/pwsh -sshs -nologo"
+            state: present
+        notify: Restart SSH
+
+      - name: Restart SSH service
+        ansible.builtin.service:
+            name: sshd
+            state: restarted

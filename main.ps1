@@ -43,10 +43,29 @@ if (-Not ($ansibleVersion)) {
     Write-Host "Ansible is already installed." -ForegroundColor Green
 }
 
-# install pwsh on the remote host
 Write-Host "Install PowerShell on the remote host..."
 ansible-playbook -i ./inventory.ini ./install-pwsh.yml --ask-become-pass
 
-# install docker on the remote host
 Write-Host "Install Docker on the remote host..."
 ansible-playbook -i ./inventory.ini ./install-docker.yml --ask-become-pass
+
+# get host information from ansible
+New-Item -Path "./temp" -ItemType Directory -Force
+ansible-playbook -i ./inventory.ini ./get-hosts.yml
+$servers = Get-Content -Path "./temp/host_info.json" | ConvertFrom-Json
+# cleanup
+Remove-Item -Path "./temp" -Recurse -Force
+
+# deploy the stack on each host
+# this could also easily be done with ansible
+foreach ($server in $servers) {
+    $hostname = ($server.msg -split ',')[0]
+    $username = ($server.msg -split ',')[1]
+    $session = New-PSSession -HostName $hostname -UserName $username -SSHTransport
+
+    Invoke-Command -Session $session -ScriptBlock {
+        docker run -d --name auto_deployed_pihole --restart unless-stopped pihole/pihole:latest 
+    }
+
+    Remove-PSSession -Session $session
+}
