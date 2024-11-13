@@ -7,7 +7,8 @@ Pi-DNStack automates the deployment of a containerized DNS stack. This project w
 ## Requirements
 
 -   [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.4)
--   A Linux Server with SSH access (Debian and RedHat based distributions are supported, other distributions may require additional configuration)
+-   A Linux Server (Debian and RedHat based distributions are supported, other distributions may require additional configuration)
+-   A Linux Workstation with SSH access to your server (Debian, RedHat and Arch based distributions are supported, other distributions may require additional configuration. If you are using Windows, you can use [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install))
 
 ## Quick start
 

@@ -13,12 +13,20 @@ function Install-Ansible{
         sudo dnf install -y ansible
     }
 
+    function Install-Ansible-Arch {
+        Write-Host "Installing Ansible on Arch-based system..."
+        sudo pacman -Sy ansible
+    }
+
     $dnfVersion = Get-Command dnf -ErrorAction SilentlyContinue
     $aptVersion = Get-Command apt -ErrorAction SilentlyContinue
+    $pacmanVersion = Get-Command pacman -ErrorAction SilentlyContinue
     if ($dnfVersion) {
         Install-Ansible-RHEL
     } elseif ($aptVersion) {
         Install-Ansible-Ubuntu-Debian
+    } elseif ($pacmanVersion) {
+        Install-Ansible-Arch
     } else {
         Write-Host "Unsupported Linux distribution. Please install Ansible manually." -ForegroundColor Red
         exit 1
@@ -64,7 +72,19 @@ foreach ($server in $servers) {
     $session = New-PSSession -HostName $hostname -UserName $username -SSHTransport
 
     Invoke-Command -Session $session -ScriptBlock {
-        docker run -d --name auto_deployed_pihole --restart unless-stopped pihole/pihole:latest 
+        # pihole
+        docker run -d --name auto_deployed_pihole --restart unless-stopped pihole/pihole:latest
+        
+        # unbound
+        if ([System.Environment]::Is64BitOperatingSystem) {
+            $unbound_image = "mvance/unbound:latest"
+        } else {
+            $unbound_image = "mvance/unbound-rpi:latest"
+        }
+        docker run -d --name auto_deployed_unbound --restart unless-stopped $unbound_image
+        
+        # cloudflared
+        docker run -d --name auto_deployed_ cloudflared --restart unless-stopped cloudflare/cloudflared:latest
     }
 
     Remove-PSSession -Session $session
