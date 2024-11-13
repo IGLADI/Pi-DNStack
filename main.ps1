@@ -64,28 +64,53 @@ $servers = Get-Content -Path "./temp/host_info.json" | ConvertFrom-Json
 # cleanup
 Remove-Item -Path "./temp" -Recurse -Force
 
+function Get-Data {
+    [hashtable]$data = Import-PowerShellDataFile -Path "./main.psd1"
+    [hashtable]$defaultValues = @{
+        restartPolicy = 'unless-stopped'
+        stackName = 'auto_deployed'
+    }
+    
+    # set default values for .psd1
+    foreach ($key in $defaultValues.Keys) {
+        if (-Not $data.ContainsKey($key)) {
+            $data.Add($key, $defaultValues[$key])
+        }
+    }
+
+    return $data
+}
+
 # deploy the stack on each host
 # this could also easily be done with ansible
 foreach ($server in $servers) {
     $hostname = ($server.msg -split ',')[0]
     $username = ($server.msg -split ',')[1]
+    Write-Host "Deploying stack on $hostname..."
     $session = New-PSSession -HostName $hostname -UserName $username -SSHTransport
 
+    $data = Get-Data
+
     Invoke-Command -Session $session -ScriptBlock {
+        param($data)
         # pihole
-        docker run -d --name auto_deployed_pihole --restart unless-stopped pihole/pihole:latest
+        Write-Host "Deploying pihole..."
+        docker run -d --name "$($data['stackName'])_pihole" --restart $data['restartPolicy'] pihole/pihole
         
         # unbound
-        if ([System.Environment]::Is64BitOperatingSystem) {
-            $unbound_image = "mvance/unbound:latest"
+        Write-Host "Deploying unbound..."
+        # use a different image for arm devices (like Raspberry Pi)
+        if ((uname -m) -eq "x86_64") {
+            $unbound_image = "mvance/unbound"
         } else {
-            $unbound_image = "mvance/unbound-rpi:latest"
+            $unbound_image = "mvance/unbound-rpi"
         }
-        docker run -d --name auto_deployed_unbound --restart unless-stopped $unbound_image
+        docker run -d --name "$($data['stackName'])_unbound" --restart $data['restartPolicy'] $unbound_image
         
         # cloudflared
-        docker run -d --name auto_deployed_ cloudflared --restart unless-stopped cloudflare/cloudflared:latest
-    }
+        Write-Host "Deploying cloudflared..."
+        docker run -d --name "$($data['stackName'])_cloudflared" --restart $data['restartPolicy'] cloudflare/cloudflared
+    } -ArgumentList $data
 
     Remove-PSSession -Session $session
 }
