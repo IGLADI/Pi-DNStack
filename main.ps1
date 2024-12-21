@@ -60,7 +60,15 @@ catch {
 Remove-Item -Path $TempPath -Recurse -Force
 
 # store the needed functions from the module in variables to send them to the remote host
-$functions = @("Deploy-Container", "Deploy-Pihole", "Deploy-Unbound", "Deploy-Cloudflared", "Set-PiholeConfiguration", "Invoke-CommandWithCheck")
+$functions = @("Deploy-Container", 
+    "Deploy-Pihole", 
+    "Deploy-Unbound", 
+    "Deploy-Cloudflared", 
+    "Set-PiholeConfiguration", 
+    "Invoke-CommandWithCheck", 
+    "ConfigDifferent", 
+    "Get-CurrentContainerConfig", 
+    "Remove-OldContainers")
 $functionsDefinitions = Get-FunctionDefinitions -functions $functions
 
 # deploy the stack on each host
@@ -84,6 +92,9 @@ foreach ($server in $servers) {
             . ([ScriptBlock]::Create($functionDef))
         }
 
+        # remove unbound/cloudflared containers if they are not enabled
+        Remove-OldContainers -data $data
+
         # pihole
         Deploy-Pihole -data $data
         
@@ -92,7 +103,7 @@ foreach ($server in $servers) {
             Deploy-Unbound -data $data
         }
         else {
-            Write-Host "Unbound is disabled."
+            Write-Host "Skipping Unbound deployment..."
         }
         
         # cloudflared
@@ -100,7 +111,7 @@ foreach ($server in $servers) {
             Deploy-Cloudflared -data $data
         }
         else {
-            Write-Host "Cloudflared is disabled."
+            Write-Host "Skipping Cloudflared deployment..."
         }
 
         # config

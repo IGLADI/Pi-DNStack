@@ -40,9 +40,6 @@ $username = $username -replace "ansible_user=", ""
 
 $session = New-PSSession -HostName $hostname -UserName $username -SSHTransport
 
-# remove left containers from previous runs
-CleanUpContainers -session $session "$configDir/default.psd1"
-CleanUpContainers -session $session "$configDir/stackName_changed.psd1"
 
 # pester tests
 Describe "Docker Container Tests" {
@@ -111,11 +108,6 @@ Describe "Docker Container Tests" {
             } -ArgumentList $server
             $result | Should -Match "Non-authoritative answer"
         }
-
-        # remove the containers after the context
-        AfterAll {
-            CleanUpContainers -Session $session "$configDir/default.psd1"
-        }
     }
 
     Context "Unbound Disabled" {
@@ -154,11 +146,6 @@ Describe "Docker Container Tests" {
             } -ArgumentList $server
             $result | Should -Match "Non-authoritative answer"
         }
-
-        # remove the containers after the context
-        AfterAll {
-            CleanUpContainers -session $session "$configDir/unbound_disabled.psd1"
-        }
     }
 
     Context "Cloudflared Disabled" {
@@ -195,11 +182,6 @@ Describe "Docker Container Tests" {
                 nslookup google.com $server
             } -ArgumentList $server
             $result | Should -Match "Non-authoritative answer"
-        }
-
-        # remove the containers after the context
-        AfterAll {
-            CleanUpContainers -session $session "$configDir/cloudflared_disabled.psd1"
         }
     }
 
@@ -261,11 +243,6 @@ Describe "Docker Container Tests" {
             }
             $result | Should -Match "WEBPASSWORD=secret"
         }
-
-        # remove the containers after the context
-        AfterAll {
-            CleanUpContainers -session $session "$configDir/changes.psd1"
-        }
     }
 
     Context "Host Network" {
@@ -278,11 +255,6 @@ Describe "Docker Container Tests" {
                 docker inspect auto_deployed_pihole --format '{{.HostConfig.NetworkMode}}'
             }
             $result | Should -Match "host"
-        }
-
-        # remove the containers after the context
-        AfterAll {
-            CleanUpContainers -session $session "$configDir/host_network.psd1"
         }
     }
 
@@ -312,7 +284,7 @@ Describe "Docker Container Tests" {
             $result | Should -BeNullOrEmpty
         }
 
-        # remove the containers after the context
+        # remove the containers after the last context
         AfterAll {
             CleanUpContainers -session $session "$configDir/empty_ports.psd1"
         }
