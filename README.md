@@ -68,9 +68,9 @@ Pi-DNStack is an automated solution for deploying a containerized DNS management
     192.168.1.10 ansible_user=ansible
     ```
 
-    > [!NOTE]
-    > If you have a single server, you can just copy this example and replace the IP address and user.  
-    > The specified user must have sudo privileges on the target system.
+> [!NOTE]
+> If you have a single server, you can just copy this example and replace the IP address and user.  
+> The specified user must have sudo privileges on the target system.
 
 3.  **Configure Deployment**
 
@@ -81,8 +81,8 @@ Pi-DNStack is an automated solution for deploying a containerized DNS management
     nano main.psd1
     ```
 
-    > [!WARNING]
-    > At minimum, change the default Pi-hole password in the configuration file!
+> [!WARNING]
+> At minimum, change the default Pi-hole password in the configuration file!
 
 4.  **Deploy the Stack**
 
@@ -90,18 +90,18 @@ Pi-DNStack is an automated solution for deploying a containerized DNS management
     pwsh ./main.ps1 -ConfigPath ./main.psd1
     ```
 
-    > [!WARNING]
-    > Make sure you run the above command from your **workstation**, not directly on the target server(s).  
-    > Please ensure SSH access is properly configured.
+> [!WARNING]
+> Make sure you run the above command from your **workstation**, not directly on the target server(s).  
+> Please ensure SSH access is properly configured.
 
 5.  **Enjoy!**
 
     After deployment, access the Pi-hole web interface at: `http://<server-ip>:<port>/admin/login`, [configure your clients](https://www.windowscentral.com/how-change-your-pcs-dns-settings-windows-10#:~:text=HOW%20TO%20CHANGE%20DNS%20SETTINGS%20USING%20SETTINGS%20ON%20WINDOWS%2010) to use Pi-DNStack as DNS server and enjoy your new DNS management stack!
 
-    > [!WARNING]
-    > Clients must be able to reach your server on port 53 (DNS).  
-    > Firewalls or network rules may block this: [How to open port 53](https://www.cyberciti.biz/faq/howto-open-dns-port-53-using-ufw-ubuntu-debian/)  
-    > To confirm it's working, check if your clients show up in the Pi-hole dashboard.
+> [!WARNING]
+> Clients must be able to reach your server on port 53 (DNS).  
+> Firewalls or network rules may block this: [How to open port 53](https://www.cyberciti.biz/faq/howto-open-dns-port-53-using-ufw-ubuntu-debian/)  
+> To confirm it's working, check if your clients show up in the Pi-hole dashboard.
 
 ## Windows DHCP Configuration
 
