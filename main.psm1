@@ -155,20 +155,23 @@ function ConfigDifferent {
 function Get-CurrentContainerConfig {
     param (
         [Parameter(Mandatory = $true)]
-        [string]$ContainerName
+        [string]$ContainerName,
+        [Parameter(Mandatory = $false)]
+        [string]$containerEngine = "docker"
     )
 
-    if ($null -eq (docker ps --filter "name=$name" --format "{{.Names}}")) {
+    # Corrected: Use Invoke-Expression for the ps command to avoid parser errors with the variable
+    if ($null -eq (Invoke-Expression "$containerEngine ps --filter 'name=$ContainerName' --format '{{.Names}}'")) {
         return $null
     }
 
-    [string]$image = docker inspect --format='{{.Config.Image}}' $ContainerName
+    [string]$image = Invoke-Expression "$containerEngine inspect --format='{{.Config.Image}}' $ContainerName"
     # with help of https://chatgpt.com/share/6766e1f1-a8a0-8011-b306-59da137b7359
-    [string]$ports = docker inspect --format '{{range $p, $conf := .NetworkSettings.Ports}}{{if $conf}}{{(index $conf 0).HostPort}}:{{(index $conf 0).HostPort}} {{end}}{{end}}' $ContainerName
-    [string]$volumes = docker inspect --format '{{range .Mounts}}{{if .Source}}{{.Source}}:{{.Destination}} {{end}}{{end}}' $ContainerName
-    [string]$environmentVariables = docker inspect --format='{{range .Config.Env}}{{.}}{{end}}' $ContainerName
-    [string]$restartPolicy = docker inspect --format='{{.HostConfig.RestartPolicy.Name}}' $ContainerName
-    [string]$containerNetwork = docker inspect --format '{{.HostConfig.NetworkMode}}' $ContainerName
+    [string]$ports = Invoke-Expression "$containerEngine inspect --format '{{range `$p, `$conf := .NetworkSettings.Ports}}{{if `$conf}}{{(index `$conf 0).HostPort}}:{{(index `$conf 0).HostPort}} {{end}}{{end}}' $ContainerName"
+    [string]$volumes = Invoke-Expression "$containerEngine inspect --format '{{range .Mounts}}{{if .Source}}{{.Source}}:{{.Destination}} {{end}}{{end}}' $ContainerName"
+    [string]$environmentVariables = Invoke-Expression "$containerEngine inspect --format='{{range .Config.Env}}{{.}}{{end}}' $ContainerName"
+    [string]$restartPolicy = Invoke-Expression "$containerEngine inspect --format='{{.HostConfig.RestartPolicy.Name}}' $ContainerName"
+    [string]$containerNetwork = Invoke-Expression "$containerEngine inspect --format '{{.HostConfig.NetworkMode}}' $ContainerName"
 
     [hashtable]$currentConfig = @{
         Image                = $image
@@ -212,12 +215,14 @@ function Deploy-Container {
         [Parameter(Mandatory = $false)]
         [string]$flags = "",
         [Parameter(Mandatory = $false)]
-        [string]$extra = ""
+        [string]$extra = "",
+        [Parameter(Mandatory = $false)]
+        [string]$containerEngine = "docker"
     )
     
     try {
         # declarative checks
-        $currentConfig = Get-CurrentContainerConfig -ContainerName $name
+        $currentConfig = Get-CurrentContainerConfig -ContainerName $name -containerEngine $containerEngine
         $envs = @()
         if ($name -match "pihole") {
             $envs += "FTLCONF_webserver_api_password=$($data['piholePassword'])"
@@ -229,14 +234,14 @@ function Deploy-Container {
         # checks if there are configuration differences between the current and desired state
         elseif (ConfigDifferent -CurrentConfig $currentConfig -image $image -ports $ports -volumes $volumes -envs $envs -restartPolicy $restartPolicy -containerNetwork $network) {
             Write-Host "Container $name exists but configuration differs. Replacing container..."
-            docker rm -f $name
+            Invoke-Expression "$containerEngine rm -f $name"
         }
         else {
             Write-Host "Container $name is already deployed with the correct configuration."
             return
         }
 
-        [string]$command = "docker run -d --name $name"
+        [string]$command = "$containerEngine run -d --name $name"
         if ($restartPolicy) { 
             $command += " --restart $restartPolicy" 
         }
@@ -292,7 +297,8 @@ function Deploy-Pihole {
         "$($data['piholeDnsPort']):53"
     ) `
         -volumes $data['piholeVolumes'] `
-        -flags "$($data['piholeFlags']) -e FTLCONF_webserver_api_password=$password"
+        -flags "$($data['piholeFlags']) -e FTLCONF_webserver_api_password=$password" `
+        -containerEngine $data['containerEngine']
 }
 
 <#
@@ -318,7 +324,8 @@ function Deploy-Unbound {
         -restartPolicy $data['restartPolicy'] `
         -ports @("$($data['unboundPort']):53") `
         -volumes $data['unboundVolumes'] `
-        -flags $data['unboundFlags']
+        -flags $data['unboundFlags'] `
+        -containerEngine $data['containerEngine']
 }  
 
 <#
@@ -348,7 +355,8 @@ function Deploy-Cloudflared {
         -ports @("$($data['cloudflaredPort']):5053") `
         -volumes $data['cloudflaredVolumes'] `
         -flags $data['cloudflaredFlags'] `
-        -extra $extra
+        -extra $extra `
+        -containerEngine $data['containerEngine']
 }
 
 <#
@@ -370,12 +378,12 @@ function Remove-OldContainers {
     if (-Not $data['unboundEnabled']) {
         Write-Host "Removing old unbound container if present..."
         # remove the container silently
-        docker rm -f "$($data['stackName'])_unbound" 2>&1 >/dev/null
+        Invoke-Expression "$($data['containerEngine']) rm -f $($data['stackName'])_unbound 2>&1 >/dev/null"
     }
 
     if (-Not $data['cloudflaredEnabled']) {
         Write-Host "Removing old cloudflared container if present..."
-        docker rm -f "$($data['stackName'])_cloudflared" 2>&1 >/dev/null
+        Invoke-Expression "$($data['containerEngine']) rm -f $($data['stackName'])_cloudflared 2>&1 >/dev/null"
     }
 }
 #endregion
@@ -409,7 +417,7 @@ function Set-PiholeConfiguration {
                 [string]$IP = Invoke-CommandWithCheck "hostname -I | awk '{print `$1}'"
             }
             else {
-                [string]$IP = Invoke-CommandWithCheck "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ""$($data['stackName'])_$container"""
+                [string]$IP = Invoke-CommandWithCheck "$($data['containerEngine']) inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ""$($data['stackName'])_$container"""
             }
             if (-not $IP) {
                 throw "Failed to get IP address for container $container"
@@ -442,7 +450,7 @@ function Set-PiholeConfiguration {
         echo 'PIHOLE_DNS_$nr=$dnsNetwork' >> /etc/pihole/setupVars.conf
     fi
 "@
-        docker exec "$($data['stackName'])_pihole" /bin/bash -c $command
+        Invoke-Expression "$($data['containerEngine']) exec $($data['stackName'])_pihole /bin/bash -c '$command'"
     }
 
     Write-Host "Waiting for Pi-hole to be healthy..."
@@ -451,7 +459,7 @@ function Set-PiholeConfiguration {
     $healthy = $false
     while ($retryCount -lt $maxRetries -and -not $healthy) {
         Start-Sleep -Seconds 10
-        $status = docker inspect --format='{{.State.Health.Status}}' "$($data['stackName'])_pihole"
+        $status = Invoke-Expression "$($data['containerEngine']) inspect --format='{{.State.Health.Status}}' $($data['stackName'])_pihole"
         if ($status -eq "healthy") {
             $healthy = $true
         }
@@ -501,10 +509,10 @@ function Set-PiholeConfiguration {
     # with help of https://chatgpt.com/share/676050bc-c4bc-8011-aeec-5efcce256287
     do {
         [string]$command = "sed -i '/^PIHOLE_DNS_$nr=/d' /etc/pihole/setupVars.conf"
-        [string]$output = docker exec "$($data['stackName'])_pihole" /bin/bash -c "grep '^PIHOLE_DNS_$nr=' /etc/pihole/setupVars.conf"
+        [string]$output = Invoke-Expression "$($data['containerEngine']) exec $($data['stackName'])_pihole /bin/bash -c `"grep '^PIHOLE_DNS_$nr=' /etc/pihole/setupVars.conf`""
 
         if ($output) {
-            docker exec "$($data['stackName'])_pihole" /bin/bash -c $command
+            Invoke-Expression "$($data['containerEngine']) exec $($data['stackName'])_pihole /bin/bash -c '$command'"
             $nr++
         }
     } while ($output)
@@ -521,19 +529,19 @@ else
     echo 'DNSSEC=$dnssecValue' >> /etc/pihole/setupVars.conf
 fi
 "@
-    docker exec "$($data['stackName'])_pihole" /bin/bash -c $command
+    Invoke-Expression "$($data['containerEngine']) exec $($data['stackName'])_pihole /bin/bash -c '$command'"
     #endregion
 
     #region adlist
     # update gravity in case the db is not yet created
-    docker exec "$($data['stackName'])_pihole" pihole updateGravity 2>&1 >/dev/null
+    Invoke-Expression "$($data['containerEngine']) exec $($data['stackName'])_pihole pihole updateGravity 2>&1 >/dev/null"
     # remove deprecated adlists
-    $existingAdlists = docker exec "$($data['stackName'])_pihole" pihole-FTL sqlite3 /etc/pihole/gravity.db "SELECT address FROM adlist;"
+    $existingAdlists = Invoke-Expression "$($data['containerEngine']) exec $($data['stackName'])_pihole pihole-FTL sqlite3 /etc/pihole/gravity.db 'SELECT address FROM adlist;'"
     $existingAdlists = $existingAdlists -split "`n"
 
     foreach ($adlist in $existingAdlists) {
         if ($adlist -notin $data['adlists']) {
-            docker exec "$($data['stackName'])_pihole" pihole-FTL sqlite3 /etc/pihole/gravity.db "DELETE FROM adlist WHERE address='$adlist';"
+            Invoke-Expression "$($data['containerEngine']) exec $($data['stackName'])_pihole pihole-FTL sqlite3 /etc/pihole/gravity.db 'DELETE FROM adlist WHERE address=`'$adlist`';'"
         }
     }
     # add new ones
@@ -542,10 +550,10 @@ fi
 INSERT OR IGNORE INTO adlist (address, enabled, date_added, date_modified, comment, date_updated, number, invalid_domains, status)
 VALUES ('$adlist', 1, cast(strftime('%s', 'now') as int), cast(strftime('%s', 'now') as int), 'Added via Pi-DNStack', NULL, 0, 0, 0);
 "@
-        docker exec "$($data['stackName'])_pihole" pihole-FTL sqlite3 /etc/pihole/gravity.db "$command"
+        Invoke-Expression "$($data['containerEngine']) exec $($data['stackName'])_pihole pihole-FTL sqlite3 /etc/pihole/gravity.db '$command'"
 
     }
-    docker exec "$($data['stackName'])_pihole" pihole updateGravity 2>&1 >/dev/null
+    Invoke-Expression "$($data['containerEngine']) exec $($data['stackName'])_pihole pihole updateGravity 2>&1 >/dev/null"
     #endregion
 
     #region set pihole interface
@@ -568,7 +576,7 @@ if [[ -n "$($data['listen'])" ]]; then
 fi
 "@
 
-    docker exec "$($data['stackName'])_pihole" /bin/bash -c $command
+    Invoke-Expression "$($data['containerEngine']) exec $($data['stackName'])_pihole /bin/bash -c '$command'"
     #endregion
 }
 
@@ -700,7 +708,7 @@ function Get-DnsIp {
     }
     else {
         # Use container ip, not recommended as it will not be accessible from outside
-        return Invoke-CommandWithCheck "docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $($data['stackName'])_pihole"
+        return Invoke-CommandWithCheck "$($data['containerEngine']) inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $($data['stackName'])_pihole"
     }
 }
 

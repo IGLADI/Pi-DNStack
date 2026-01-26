@@ -1,6 +1,7 @@
 @{
     restartPolicy      = "unless-stopped"
     stackName          = "Pi-DNStack"
+    containerEngine    = "docker"
     containerNetwork   = "host"
     piholeImage        = "pihole/pihole:latest"
     piholeUiPort       = ""

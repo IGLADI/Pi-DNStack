@@ -11,7 +11,12 @@ param(
                 throw "The specified file path '$fullPath' does not exist."
             }
 
-            $config = Import-PowerShellDataFile -Path $fullPath
+            try {
+                $config = Import-PowerShellDataFile -Path $fullPath -ErrorAction Stop
+            }
+            catch {
+                Write-Warning "Failed to import: $_ Please ensure the file is a valid PowerShell data file."
+            }
 
             # Prevent default password usage
             if ($config.piholePassword -eq "admin") {
@@ -96,6 +101,13 @@ param(
                 }
                 if ($config.dhcpPolicyName -isnot [string]) {
                     throw "The 'dhcpPolicyName' in the configuration file is invalid. It should be a string."
+                }
+            }
+
+            # Validate container engine setting
+            if ($config.ContainsKey('containerEngine')) {
+                if ($config.containerEngine -isnot [string] -or [string]::IsNullOrWhiteSpace($config.containerEngine)) {
+                    throw "The 'containerEngine' in the configuration file is invalid. It should be a non-empty string (e.g. 'docker' or 'podman')."
                 }
             }
 

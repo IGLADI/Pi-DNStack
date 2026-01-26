@@ -6,6 +6,10 @@
     # Prefix for all container names in this stack. Only containers with this prefix will be managed.
     stackName          = "Pi-DNStack"
     
+    # Select container engine
+    # Officially supported: "docker". Other engines (e.g., "podman") may work if already installed, but "docker" is the only officially tested engine.
+    containerEngine    = "docker"
+    
     # Container restart policy.
     # For more details, visit: https://docs.docker.com/engine/containers/start-containers-automatically/#use-a-restart-policy
     # Options:
@@ -144,7 +148,7 @@
         "https://raw.githubusercontent.com/mike-trewartha/Pi-hole-Talos-Threat-Blocklist/refs/heads/main/talos-threats.list",
         "https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt",
         "https://s3.amazonaws.com/lists.disconnect.me/simple_malvertising.txt",
-        "https://someonewhocares.org/hosts/hosts",
+        "https://someonewhocares.org/hosts/hosts"
         )
     #endregion
 
